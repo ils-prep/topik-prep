@@ -100,113 +100,246 @@
       'use strict';
 
       const urlParams = new URLSearchParams(window.location.search);
-      const examKey = urlParams.get('exam') || 'topik1-v1';
+      const examKey = urlParams.get('exam') || 'topik2-v1';
       
-      const variantNum = parseInt(examKey.replace(/[^0-9]/g, '')) || 1;
+      const rawVariant = parseInt(examKey.replace(/[^0-9]/g, '')) || 1;
+      const variantNum = ((rawVariant - 1) % 5) + 1; // Выбор варианта от 1 до 5
       const isTopik2 = examKey.includes('topik2');
 
-      const t1Data = {
-        subjects: ['우체부', '은행원', '경찰관', '선생님', '요리사', '의사', '가수', '학생', '친구', '어머니', '아버지', '동생', '누나', '형', '할머니', '할아버지'],
-        actions: ['편지를 보냅니다', '돈을 찾습니다', '길을 안내합니다', '책을 읽습니다', '음식을 만듭니다', '환자를 고칩니다', '노래를 부릅니다', '공부를 합니다', '커피를 마십니다', '빵을 삽니다', '운동을 합니다', '잠을 잡니다'],
-        places: ['우체국', '한국 은행', '경찰서', '도서관', '식당', '병원', '백화점', '대학교', '커피숍', '시장', '체육관', '집'],
-        categories: ['직업', '경제', '안전', '교육', '음식', '의학', '예술', '공부', '음료', '쇼핑', '스포츠', '가정']
-      };
+      // Реальное время экзамена: TOPIK I = 100 мин, TOPIK II = 170 мин
+      let timeLeft = isTopik2 ? 170 * 60 : 100 * 60;
 
-      const t2Data = {
-        subjects: ['정부의 강력한 부동산 대책이', '인공지능의 급격한 기술 발전이', '일회용품 규제를 향한 법안이', '고령화 사회에 따른 국가 예산이', '온라인 쇼핑 플랫폼의 혁신이', '전통예술을 보존하려는 노력이', '아동기 교육 환경의 변화가', '다문화 가정을 위한 복지 정책이', '기후 변화에 대처하는 글로벌 연대가', '기업들의 신재생 에너지 투자가'],
-        conditions: ['시행된 지 얼마 지나지 않아', '노동 시장의 구조적 한계 속에서', '시민들의 적극적인 동참 유도와 함께', '사회적 합의를 도출해내는 과정에서', '소비자 패턴의 정밀한 분석을 거쳐', '전문가들의 치열한 토론 끝에', '학부모들의 기대와 우려 속에서', '인프라 구축이 시급한 상황임에도', '국제적 기준을 충족하기 위하여', '시장 경쟁력 확보를 목표로 삼아'],
-        endings: ['중요한 변화를 이끌어내기 시작했습니다', '예상치 못한 문제점에 직면하게 되었습니다', '긍정적인 시장 반응을 얻고 있습니다', '사회 전반에 큰 파장을 일으켰습니다', '시민들의 다양한 의견을 수렴하고 있습니다']
+      function seededRandom(seed) {
+        let x = Math.sin(seed) * 10000;
+        return x - Math.floor(x);
+      }
+
+      function shuffleWithOptions(correctAnswerText, wrongAnswersArray, seed) {
+        let allOptions = [
+          { text: correctAnswerText, isCorrect: true },
+          ...wrongAnswersArray.map(txt => ({ text: txt, isCorrect: false }))
+        ];
+
+        for (let i = allOptions.length - 1; i > 0; i--) {
+          const j = Math.floor(seededRandom(seed + i) * (i + 1));
+          [allOptions[i], allOptions[j]] = [allOptions[j], allOptions[i]];
+        }
+
+        const symbols = ['①', '②', '③', '④'];
+        let correctIndex = 1;
+        const formattedOptions = allOptions.map((opt, idx) => {
+          if (opt.isCorrect) correctIndex = idx + 1;
+          return `${symbols[idx]} ${opt.text}`;
+        });
+
+        return { options: formattedOptions, correctIndex: correctIndex };
+      }
+
+      // ==========================================
+      // 5 УНИКАЛЬНЫХ БАЗ ДАННЫХ ДЛЯ TOPIK I
+      // ==========================================
+      const topik1Variants = {
+        1: {
+          title: "학교 및 공부 (Учеба и Школа)",
+          subjects: ['학생', '선생님', '선배', '동아리 부원', '유학생'],
+          places: ['도서관', '교실', '강의실', '학생 식당', '기숙사'],
+          actions: ['한국어를 공부합니다', '숙제를 제출합니다', '시험을 준비합니다', '책을 대출합니다', '수업을 들읍니다'],
+          categories: ['공부', '교육', '학교', '수업', '시험'],
+          wrongs: ['요리', '쇼핑', '병원', '운전']
+        },
+        2: {
+          title: "음식 및 식당 (Еда и Ресторан)",
+          subjects: ['요리사', '손님', '종업원', '친구', '영양사'],
+          places: ['식당', '카페', '주방', '제과점', '전통 찻집'],
+          actions: ['비빔밥을 주문합니다', '커피를 마십니다', '맛있는 빵을 만듭니다', '저녁을 먹습니다', '메뉴판을 봅니다'],
+          categories: ['음식', '식사', '음료', '맛', '주문'],
+          wrongs: ['운동', '날씨', '우체국', '교통']
+        },
+        3: {
+          title: "쇼핑 및 도시 (Покупки и Город)",
+          subjects: ['점원', '손님', '경찰관', '은행원', '우체부'],
+          places: ['백화점', '시장', '경찰서', '은행', '우체국'],
+          actions: ['옷을 봅니다', '돈을 찾습니다', '편지를 보냅니다', '물건을 샀습니다', '길을 물어봅니다'],
+          categories: ['쇼핑', '경제', '안전', '우편', '도시'],
+          wrongs: ['취미', '가족', '건강', '계절']
+        },
+        4: {
+          title: "날씨 및 여행 (Погода и Путешествия)",
+          subjects: ['관광객', '안내원', '운전기사', '비행기 승무원', '사진작가'],
+          places: ['공항', '호텔', '기차역', '박물관', '해수욕장'],
+          actions: ['사진을 찍습니다', '비행기를 탑니다', '지도를 봅니다', '방을 예약합니다', '경치를 구경합니다'],
+          categories: ['여행', '날씨', '교통', '숙박', '휴가'],
+          wrongs: ['직업', '요리', '은행', '우체국']
+        },
+        5: {
+          title: "가족 및 취미 (Семья и Хобби)",
+          subjects: ['어머니', '아버지', '동생', '할머니', '친구'],
+          places: ['집', '공원', '영화관', '체육관', '수영장'],
+          actions: ['영화판을 봅니다', '음악을 듣습니다', '자전거를 탑니다', '운동을 합니다', '이야기를 나눕니다'],
+          categories: ['가족', '취미', '운동', '휴식', '주말'],
+          wrongs: ['시험', '비행기', '주문', '메뉴']
+        }
       };
 
       function makeTopik1() {
         let list = [];
+        const vData = topik1Variants[variantNum];
+
         for (let i = 1; i <= 70; i++) {
           const isListening = i <= 30;
           const section = isListening ? '듣기 (Слушание)' : '읽기 (Чтение)';
           
-          const sIdx = (i + variantNum * 2) % t1Data.subjects.length;
-          const aIdx = (i + variantNum * 3) % t1Data.actions.length;
-          const pIdx = (i + variantNum * 4) % t1Data.places.length;
+          const sIdx = (i + variantNum) % vData.subjects.length;
+          const aIdx = (i + variantNum * 2) % vData.actions.length;
+          const pIdx = (i + variantNum * 3) % vData.places.length;
 
-          const options = [
-            `① ${t1Data.categories[sIdx]}`,
-            `② ${t1Data.categories[(sIdx + 1) % t1Data.categories.length]}`,
-            `③ ${t1Data.categories[(sIdx + 2) % t1Data.categories.length]}`,
-            `④ ${t1Data.categories[(sIdx + 3) % t1Data.categories.length]}`
-          ];
+          const correctCat = vData.categories[sIdx % vData.categories.length];
+          const wrongCats = vData.wrongs;
 
-          const ttsScript = `제 ${i}번 문제입니다. 다음을 잘 듣고 질문에 맞는 답을 선택하십시오. ${t1Data.subjects[sIdx]}은 ${t1Data.places[pIdx]}에서 ${t1Data.actions[aIdx]}. 다시 들으십시오.`;
+          const sh = shuffleWithOptions(correctCat, wrongCats, i * 111 + variantNum);
+          const ttsScript = `제 ${i}번 문제입니다. 다음을 잘 듣고 질문에 맞는 답을 선택하십시오. ${vData.subjects[sIdx]}은 ${vData.places[pIdx]}에서 ${vData.actions[aIdx]}. 다시 들으십시오.`;
 
           list.push({
             type: 'choice',
             section: section,
             text: isListening 
-              ? `[듣기 제 ${i} 항] 대화를 듣고 알맞은 주제를 고르십시오.`
-              : `[읽기 제 ${i} 항] 다음 문장을 읽고 알맞은 단어를 선택하십시오.\n"${t1Data.subjects[sIdx]}은 주로 ${t1Data.places[pIdx]} 근처에서 ${t1Data.actions[aIdx]}."`,
-            options: options,
-            answer: (i % 4) + 1,
+              ? `[듣기 제 ${i} 항 - Вариант ${variantNum}: ${vData.title}] 대화를 듣고 알맞은 주제를 고르십시오.`
+              : `[읽기 제 ${i} 항 - Вариант ${variantNum}: ${vData.title}] 다음 문장을 읽고 알맞은 주제를 선택하십시오.\n"${vData.subjects[sIdx]}은 주로 ${vData.places[pIdx]}에서 ${vData.actions[aIdx]}."`,
+            options: sh.options,
+            answer: sh.correctIndex,
             speechText: isListening ? ttsScript : null
           });
         }
         return list;
       }
 
+      // ==========================================
+      // 5 УНИКАЛЬНЫХ БАЗ ДАННЫХ ДЛЯ TOPIK II
+      // ==========================================
+      const topik2Variants = {
+        1: {
+          title: "경제 및 IT 혁신 (Экономика и IT)",
+          subjects: ['인공지능 자동화 시스템이', '플랫폼 노동 시장의 확정이', '디지털 화폐(CBDC) 도입이', '데이터 기반 맞춤형 서비스가', '비대면 금융 거래의 증가가'],
+          conditions: ['노동 시장의 구조적 변화 속에서', '소비자 데이터 보호의 시급함과 함께', '기존 법적 규제와의 마찰 과정에서', '기술적 안정성 확보가 미흡함에도', '국제 금융 표준 규격을 충족하기 위해'],
+          endings: ['새로운 산업 생태계를 창출하고 있습니다.', '기존 일자리 감소에 대한 우려를 낳고 있습니다.', '시장 전반의 효율성을 획기적으로 높였습니다.', '사회적 합의를 통한 제도 개선이 시급합니다.', '장기적인 관점에서의 투자 확대가 필요합니다.']
+        },
+        2: {
+          title: "환경 및 기후 변화 (Экология и Климат)",
+          subjects: ['탄소 중립 실천을 위한 정책이', '신재생 에너지 인프라 구축이', '일회용품 사용 금지 규제가', '전기차 보급 확대 지원책이', '해양 쓰레기 줄이기 캠페인이'],
+          conditions: ['시민들의 자발적 참여 유도와 함께', '초기 비용 부담이라는 한계 속에서', '기업들의 환경 경영(ESG) 전환과 맞물려', '글로벌 기후 협약 기준에 따라', '지역 사회의 협력체계 구축을 거쳐'],
+          endings: ['실질적인 환경 개선 효과를 보이고 있습니다.', '소상공인들의 경제적 부담을 가중시켰습니다.', '지속 가능한 발전의 ключевой 계기가 되었습니다.', '국제적인 연대와 기술 공유가 필수적입니다.', '장기적 차원의 범국민적 교육이 요구됩니다.']
+        },
+        3: {
+          title: "사회 및 고령화 (Общество и Демография)",
+          subjects: ['초고령 사회 진입에 따른 예산 편성이', '1인 가구 증가에 따른 복지 정책이', '청년 주거 안정 지원 사업이', '다문화 가정 적응 지원 프로그램이', '저출생 극복을 위한 돌봄 정책이'],
+          conditions: ['지방 자치 단체의 재정 자립도 문제와', '세대 간 갈등을 해소하는 과정에서', '복지 사각지대 발굴의 어려움 속에서도', '전문 인력 확보가 시급한 상황에서', '현장 실태 조사의 정밀한 분석을 바탕으로'],
+          endings: ['맞춤형 복지 시스템으로 진화해야 합니다.', '사회적 안전망을 강화하는 데 기여했습니다.', '지역 공동체의 활발한 역할이 요구됩니다.', '제도적 보완과 예산 확충이 전제되어야 합니다.', '국민적 공감대 형성이 우선시되어야 합니다.']
+        },
+        4: {
+          title: "교육 및 문화 (Образование и Культура)",
+          subjects: ['디지털 교과서 도입 추진이', '전통문화 콘텐츠의 세계화가', '평생교육 학습 플랫폼 구축이', 'K-컬처 산업의 외연 확장이', '융합형 창의 인재 양성 교육이'],
+          conditions: ['교육 현장의 준비 부족에 대한 우려 속에', '글로벌 시장의 수요 변화에 발맞추어', '지역 간 교육 격차 해소를 목표로 삼아', '문화재 보존과 개발의 균형점 탐색 끝에', '인공지능 교육 프로그램과의 연계를 통해'],
+          endings: ['교육의 질적 향상을 이끌어낼 것으로 기대됩니다.', '문화적 다양성과 가치를 높이는 데 일조했습니다.', '디지털 소외 계층에 대한 배려가 필요합니다.', '지속적인 콘텐츠 개발이 성패를 좌우합니다.', '창의적 사고를 길러주는 기반이 마련되었습니다.']
+        },
+        5: {
+          title: "보건 및 과학기술 (Здравоохранение и Наука)",
+          subjects: ['원격 의료 서비스의 법제화가', '바이오 헬스케어 기술 개발이', '감염병 대응 예방 시스템이', '우주 항공 산업에 대한 투자가', '뇌과학 및 로봇 공학 연구가'],
+          conditions: ['의료계와 정부 간의 의견 대립 속에서', '임상 시험의 안전성 검증을 거친 후', '국가 연구 개발(R&D) 예산의 지원으로', '전문 연구 인력의 해외 유출 우려 속에서', '윤리적 문제에 대한 사회적 논의와 함께'],
+          endings: ['미래 핵심 성장 동력으로 자리잡았습니다.', '국민 건강 증진에 크게 기여할 것입니다.', '안전성 확보를 위한 가이드라인이 필요합니다.', '세계적 수준의 기술 경쟁력을 확보했습니다.', '신중한 법적·윤리적 기준 마련이 시급합니다.']
+        }
+      };
+
       function makeTopik2() {
         let list = [];
+        const vData = topik2Variants[variantNum];
         
+        // 1. Listening Section (듣기 1~50)
         for (let i = 1; i <= 50; i++) {
-          const subIdx = (i + variantNum) % t2Data.subjects.length;
-          const condIdx = (i + variantNum + 2) % t2Data.conditions.length;
-          const endIdx = (i + variantNum + 4) % t2Data.endings.length;
+          const subIdx = (i + variantNum * 2) % vData.subjects.length;
+          const condIdx = (i + variantNum * 3) % vData.conditions.length;
+          const endIdx = (i + variantNum * 4) % vData.endings.length;
 
-          const ttsScript = `제 ${i}번 문제입니다. 다음 강연을 듣고 여자의 중심 생각과 가장 일치하는 것을 고르십시오. 최근 논란이 되고 있는 ${t2Data.subjects[subIdx]} 상황 속에서, 결과적으로는 ${t2Data.conditions[condIdx]} ${t2Data.endings[endIdx]}.`;
-
-          const options = [
-            `① ${t2Data.subjects[subIdx]} 해결책을 신속히 마련해야 한다.`,
-            `② ${t2Data.conditions[condIdx]} 규제를 강화해야 할 필요가 있다.`,
-            `③ 사회 구성원들의 소통을 통해 문제를 다루어야 한다.`,
-            `④ 현실적인 조건을 고려한 장기적인 계획을 수립해야 한다.`
+          const correctAns = `${vData.subjects[subIdx]} ${vData.conditions[condIdx]} ${vData.endings[endIdx]}`;
+          const wrongAns = [
+            `${vData.subjects[(subIdx + 1) % vData.subjects.length]} ${vData.endings[(endIdx + 1) % vData.endings.length]}`,
+            `현실적인 조건보다는 장기적인 계획 수립이 더 우선되어야 한다.`,
+            `사회 구성원 간의 소통 부족이 주요 원인으로 지목된다.`
           ];
+
+          const sh = shuffleWithOptions(correctAns, wrongAns, i * 33 + variantNum);
+          const ttsScript = `제 ${i}번 문제입니다. 다음 담화를 듣고 질문에 맞는 알맞은 답을 고르십시오. 최근 이슈가 되는 ${vData.subjects[subIdx]} 상황 속에서, ${vData.conditions[condIdx]} 결국 ${vData.endings[endIdx]}`;
 
           list.push({
             type: 'choice',
             section: '듣기 (Слушание)',
-            text: `[듣기 제 ${i} 항] 다음 담화를 듣고 질문에 맞는 알맞은 답을 고르십시오.`,
-            options: options,
-            answer: (i % 4) + 1,
+            text: `[듣기 제 ${i} 항 - Вариант ${variantNum}: ${vData.title}] 다음 담화를 듣고 여자의 중심 생각과 가장 일치하는 것을 고르십시오.`,
+            options: sh.options,
+            answer: sh.correctIndex,
             speechText: ttsScript
           });
         }
 
-        const writingData = [
-          { q: '51', txt: `[쓰기 제 51 항] 다음 메일을 읽고 빈칸에 알맞은 비즈니스 경어를 채우십시오.\n\n"수신: 인사팀장님\n보내주신 연수 일정표는 잘 [ ㄱ ]. 다만 개인 사정으로 화요일 세션은 참석이 [ ㄴ ]."` },
-          { q: '52', txt: `[쓰기 제 52 항] 다음 글의 빈칸에 학술적 정의에 맞는 단어를 기술하십시오.\n\n"경제학에서 기회비용이란 하나의 선택을 위해 포기해야 하는 가치를 [ ㄱ ]. 영리한 소비자라면 소비 행위 전에 반드시 비용을 [ ㄴ ]."` },
-          { q: '53', txt: `[쓰기 제 53 항] 다음 그래프를 토대로 한국의 '전기차 보급 추이 및 향후 전망'에 대한 설명문을 작성하십시오 (200~300자).\n\n• 조사 기재: 국토교통부\n• 현황 핵심: 충전 인프라의 확충이 보급 속도 가속화의 주 원인으로 작용함` },
-          { q: '54', txt: `[쓰기 제 54 항] '현대인의 고독사 및 1인 가구 고립 문제'에 대해 자신의 논리를 전개하십시오 (600~700자).\n\n1. 1인 가구 증가가 불러오는 사회적 소외감의 원인\n2. 이를 극복하기 위한 지역 공동체의 역할\n3. 정부 차원의 예방 복지 시스템 구체화 방안` }
-        ];
+        // 2. Writing Section (쓰기 51~54)
+        const writingVariants = {
+          1: [
+            { q: '51', txt: `[쓰기 제 51 항] 다음 메일을 읽고 빈칸에 알맞은 비즈니스 표현을 채우십시오.\n\n"수신: IT사업팀장님\n보내주신 신규 프로젝트 기획안은 잘 [ ㄱ ]. 다만 서버 증설 일정은 조정이 [ ㄴ ]."` },
+            { q: '52', txt: `[쓰기 제 52 항] 다음 글의 빈칸에 학술적 정의에 맞는 단어를 기술하십시오.\n\n"빅데이터 분석에서 데이터의 정확성은 분석 결과의 신뢰도를 결정짓는 핵심 요소를 [ ㄱ ]. 따라서 수집 단계부터 검증 절차를 [ ㄴ ]."` },
+            { q: '53', txt: `[쓰기 제 53 항] '한국의 플랫폼 노동자 수 변화 추이'에 대한 설명문을 작성하십시오 (200~300자).` },
+            { q: '54', txt: `[쓰기 제 54 항] '인공지능 발전에 따른 윤리적 규제 필요성'에 대해 논하시오 (600~700자).` }
+          ],
+          2: [
+            { q: '51', txt: `[쓰기 제 51 항] 다음 안내문을 읽고 빈칸을 채우십시오.\n\n"제목: 에코 캠페인 봉사자 모집\n이번 주말 예정된 플로깅 행사에 참여를 [ ㄱ ]. 우천 시 일정이 변경될 수 있으니 안내 문자를 [ ㄴ ]."` },
+            { q: '52', txt: `[쓰기 제 52 항] 다음 글의 빈칸을 채우십시오.\n\n"탄소중립이란 배출한 만큼의 탄소를 흡수하여 실질적 배출량을 0으로 [ ㄱ ]. 이를 위해 기업은 친환경 기술에 투자해야 [ ㄴ ]."` },
+            { q: '53', txt: `[쓰기 제 53 항] '재활용품 배출량 및 처리 비율 변화'에 대해 기술하십시오 (200~300자).` },
+            { q: '54', txt: `[쓰기 제 54 항] '기후 위기 극복을 위한 정부와 개인의 역할'에 대해 논하시오 (600~700자).` }
+          ],
+          3: [
+            { q: '51', txt: `[쓰기 제 51 항] 다음 문의글에 대한 답글을 완성하십시오.\n\n"안녕하십니까? 요청하신 복지 지원금 신청 서류는 이메일로 [ ㄱ ]. 제출 기한이 지나면 접수가 [ ㄴ ]."` },
+            { q: '52', txt: `[쓰기 제 52 항] 다음 학술 지문의 빈칸을 채우십시오.\n\n"고령화 사회란 65세 이상 인구 비율이 전체의 14% 이상을 차지하는 상태를 [ ㄱ ]. 이에 따른 사회적 비용 증가에 대비를 [ ㄴ ]."` },
+            { q: '53', txt: `[쓰기 제 53 항] '1인 가구 증가 현황 및 주요 원인'에 대한 보고서를 작성하십시오 (200~300자).` },
+            { q: '54', txt: `[쓰기 제 54 항] '초고령 사회의 노인 복지 정책 방향'에 대해 논하시오 (600~700자).` }
+          ],
+          4: [
+            { q: '51', txt: `[쓰기 제 51 항] 다음 공지사항을 읽고 빈칸을 작성하십시오.\n\n"수강생 여러분, 다음 주 진행되는 특별 강연 신청은 홈페이지에서 [ ㄱ ]. 선착순 마감이므로 서둘러 신청해 [ ㄴ ]."` },
+            { q: '52', txt: `[쓰기 제 52 항] 다음 문장의 빈칸을 채우십시오.\n\n"문화 다양성이란 서로 다른 문화적 배경을 인정하고 존중하는 태도를 [ ㄱ ]. 이는 사회적 갈등을 예방하는 데 중요한 역할을 [ ㄴ ]."` },
+            { q: '53', txt: `[쓰기 제 53 항] '온라인 교육 플랫폼 이용자 수 추이'를 분석해 쓰십시오 (200~300자).` },
+            { q: '54', txt: `[쓰기 제 54 항] '디지털 시대의 교육 격차 해소 방안'에 대해 논하시오 (600~700자).` }
+          ],
+          5: [
+            { q: '51', txt: `[쓰기 제 51 항] 다음 병원 예약 안내문을 완성하십시오.\n\n"환자분, 예약하신 진료 시간이 변경되었습니다. 확인 후 답장을 [ ㄱ ]. 변경을 원치 않으시면 센터로 전화 [ ㄴ ]."` },
+            { q: '52', txt: `[쓰기 제 52 항] 다음 지문의 빈칸을 채우십시오.\n\n"원격 의료는 의료 접근성을 높여주지만 기술적 오류의 위험을 [ ㄱ ]. 따라서 안전성 검증을 철저히 진행해야 [ ㄴ ]."` },
+            { q: '53', txt: `[쓰기 제 53 항] '바이오 헬스케어 R&D 투자 규모'에 대해 설명하십시오 (200~300자).` },
+            { q: '54', txt: `[쓰기 제 54 항] '과학기술 발전과 인간 존엄성의 관계'에 대해 논하시오 (600~700자).` }
+          ]
+        };
 
-        writingData.forEach(wd => {
-          list.push({ type: 'write', section: `쓰기 (Письмо) — Q${wd.q}`, text: wd.txt, speechText: null });
+        const currentWritings = writingVariants[variantNum];
+        currentWritings.forEach(wd => {
+          list.push({ type: 'write', section: `쓰기 (Пись모) — Q${wd.q}`, text: wd.txt, speechText: null });
         });
 
+        // 3. Reading Section (읽기 55~104)
         for (let i = 55; i <= 104; i++) {
-          const subIdx = (i + variantNum * 2) % t2Data.subjects.length;
-          const condIdx = (i + variantNum * 3) % t2Data.conditions.length;
-          const endIdx = (i + variantNum * 4) % t2Data.endings.length;
+          const qNum = i - 54;
+          const subIdx = (i + variantNum * 3) % vData.subjects.length;
+          const condIdx = (i + variantNum * 4) % vData.conditions.length;
+          const endIdx = (i + variantNum * 5) % vData.endings.length;
 
-          const options = [
-            `① ${t2Data.endings[endIdx]}`,
-            `② ${t2Data.endings[(endIdx + 1) % t2Data.endings.length]}`,
-            `③ ${t2Data.endings[(endIdx + 2) % t2Data.endings.length]}`,
-            `④ ${t2Data.endings[(endIdx + 3) % t2Data.endings.length]}`
+          const correctAns = vData.endings[endIdx];
+          const wrongAns = [
+            vData.endings[(endIdx + 1) % vData.endings.length],
+            vData.endings[(endIdx + 2) % vData.endings.length],
+            vData.endings[(endIdx + 3) % vData.endings.length]
           ];
+
+          const sh = shuffleWithOptions(correctAns, wrongAns, i * 77 + variantNum);
 
           list.push({
             type: 'choice',
             section: '읽기 (Чтение)',
-            text: `[읽기 제 ${i - 4} 항] 다음 지문을 읽고 빈칸에 가장 알맞은 표현을 선택하십시오.\n\n"현대 사회에서 분석가들은 융합 연구에 집중한다. 특히 ${t2Data.subjects[subIdx]} 측면은 ${t2Data.conditions[condIdx]} 결국 ( ) 현상을 초래한다."`,
-            options: options,
-            answer: (i % 4) + 1,
+            text: `[읽기 제 ${qNum} 항 - Вариант ${variantNum}: ${vData.title}] 다음 지문을 읽고 ( )에 들어갈 가장 알맞은 표현을 고르십시오.\n\n"최근 연구에 따르면 ${vData.subjects[subIdx]} 측면은 ${vData.conditions[condIdx]} 결국 ( ) 결과를 초래한다."`,
+            options: sh.options,
+            answer: sh.correctIndex,
             speechText: null
           });
         }
@@ -214,12 +347,11 @@
         return list;
       }
 
-      // Назначение пула вопросов строго на основе значения флага isTopik2
+      // Выбор генератора на основе выбранного уровня
       const questions = Object.freeze(isTopik2 ? makeTopik2() : makeTopik1());
 
       let currentIdx = 0;
       const userAnswers = new Array(questions.length).fill(null);
-      let timeLeft = isTopik2 ? 180 * 60 : 100 * 60;
 
       function speakKoreanText(text) {
         if (!('speechSynthesis' in window)) {
