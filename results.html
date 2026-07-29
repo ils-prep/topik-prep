@@ -1,40 +1,26 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ИИ-Аналитика результатов · TOPIK ILS</title>
-  <style>
-    :root {
-      --bg: #05070f;
-      --card-bg: rgba(13, 18, 33, 0.45);
-      --border: rgba(168, 85, 247, 0.2);
-      --text: #f3f4f6;
-      --text-muted: #8892b0;
-      --purple: #a855f7;
-      --cyan: #06b6d4;
-      --success: #10b981;
-      --error: #ef4444;
-      --success-bg: rgba(16, 185, 129, 0.1);
-      --error-bg: rgba(239, 68, 68, 0.1);
-    }
+async function saveResultsToGist(testResults) {
+  const GITHUB_TOKEN = 'your_github_token'; // Рекомендуется использовать прокси/environment variables
+  
+  const response = await fetch('https://api.github.com/gists', {
+    method: 'POST',
+    headers: {
+      'Authorization': `token ${GITHUB_TOKEN}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      description: 'TOPIK Exam Result',
+      public: false,
+      files: {
+        'result.json': {
+          content: JSON.stringify(testResults, null, 2)
+        }
+      }
+    })
+  });
 
-    * { box-sizing: border-box; margin: 0; padding: 0; transition: all 0.25s ease; }
-    body {
-      background-color: var(--bg);
-      color: var(--text);
-      font-family: system-ui, -apple-system, sans-serif;
-      padding: 50px 20px;
-    }
-    .container { max-width: 800px; margin: 0 auto; }
-
-    .result-card {
-      background: var(--card-bg);
-      border: 1px solid var(--border);
-      border-radius: 24px;
-      padding: 40px;
-      backdrop-filter: blur(15px);
-      box-shadow: 0 20px 50px rgba(168, 85, 247, 0.05);
+  const data = await response.json();
+  console.log('Сохранено в Gist:', data.html_url);
+}      box-shadow: 0 20px 50px rgba(168, 85, 247, 0.05);
     }
 
     h1 {
