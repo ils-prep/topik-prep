@@ -14,6 +14,9 @@
       --purple: #a855f7;
       --cyan: #06b6d4;
       --success: #10b981;
+      --error: #ef4444;
+      --success-bg: rgba(16, 185, 129, 0.1);
+      --error-bg: rgba(239, 68, 68, 0.1);
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; transition: all 0.25s ease; }
@@ -78,6 +81,91 @@
     }
     .ai-text { font-size: 1.05rem; line-height: 1.6; color: #e2e8f0; }
 
+    /* Секция детального разбора каждого вопроса */
+    .questions-breakdown {
+      margin-bottom: 35px;
+    }
+    .section-title {
+      font-size: 1.3rem;
+      margin-bottom: 20px;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .question-item {
+      background: rgba(255, 255, 255, 0.02);
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .question-item.correct {
+      border-left: 4px solid var(--success);
+      background: var(--success-bg);
+    }
+    .question-item.incorrect {
+      border-left: 4px solid var(--error);
+      background: var(--error-bg);
+    }
+
+    .q-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .q-number {
+      font-weight: 700;
+      font-size: 0.95rem;
+      color: var(--text-muted);
+    }
+    .q-badge {
+      font-size: 0.75rem;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-weight: 700;
+    }
+    .badge-success { background: var(--success); color: #000; }
+    .badge-error { background: var(--error); color: #fff; }
+
+    .q-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #fff;
+      margin-bottom: 15px;
+      line-height: 1.4;
+    }
+
+    .answers-comparison {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 15px;
+      font-size: 0.95rem;
+    }
+    .ans-row {
+      display: flex;
+      gap: 8px;
+    }
+    .ans-label { color: var(--text-muted); min-width: 140px; }
+    .ans-val { font-weight: 600; }
+    .ans-val.user-wrong { color: var(--error); }
+    .ans-val.user-correct { color: var(--success); }
+    .ans-val.correct-ans { color: var(--success); }
+
+    .q-explanation {
+      background: rgba(0, 0, 0, 0.25);
+      border-radius: 10px;
+      padding: 12px 15px;
+      font-size: 0.9rem;
+      line-height: 1.5;
+      color: #cbd5e1;
+      border: 1px dashed rgba(255,255,255,0.1);
+    }
+    .q-explanation strong { color: var(--cyan); }
+
     .btn-home {
       display: block; text-align: center; background: transparent;
       border: 1px solid rgba(255,255,255,0.15); color: #fff;
@@ -111,6 +199,12 @@
         <p class="ai-text" id="ai-comment">Генерирую экспертный отзыв ИИ...</p>
       </div>
 
+      <!-- Контейнер для детального разбора вопросов -->
+      <div class="questions-breakdown">
+        <h2 class="section-title">📋 Детальный разбор по каждому вопросу</h2>
+        <div id="questions-list"></div>
+      </div>
+
       <a href="index.html" class="btn-home">Вернуться на главную панель</a>
     </div>
   </div>
@@ -125,7 +219,7 @@
       }
 
       const report = JSON.parse(rawData);
-      const isTopik2 = report.examKey.includes('topik2');
+      const isTopik2 = report.examKey && report.examKey.includes('topik2');
       
       // Вычисляем процент успеха
       const percent = report.correctCount / report.totalQuestions;
@@ -165,6 +259,57 @@
       } else {
         aiTextEl.innerHTML = `🪵 <strong>0 баллов. Полный блэкаут.</strong> Ни один ответ не совпал. Но эй, отрицательный результат в кибер-тестировании — это тоже точка старта. Время открыть корейский алфавит (Хангыль) и начать заново!`;
       }
+
+      // --- ГЕНЕРАЦИЯ ФИДБЕКА ПО КАЖДОМУ ВОПРОСУ ---
+      const listContainer = document.getElementById('questions-list');
+      
+      // Поддержка различных структур данных (report.answers или report.questions)
+      const questionsData = report.questions || report.answers || [];
+
+      if (questionsData.length === 0) {
+        listContainer.innerHTML = '<p style="color: var(--text-muted); text-align: center;">Детальные данные по вопросам недоступны.</p>';
+        return;
+      }
+
+      questionsData.forEach((q, index) => {
+        // Определение состояния ответа
+        const isCorrect = q.isCorrect !== undefined ? q.isCorrect : (q.userAnswer === q.correctAnswer);
+        const cardClass = isCorrect ? 'correct' : 'incorrect';
+        const badgeClass = isCorrect ? 'badge-success' : 'badge-error';
+        const badgeText = isCorrect ? 'Правильно' : 'Ошибка';
+
+        // Текст ответов
+        const userAnswerText = q.userAnswer || 'Нет ответа';
+        const correctAnswerText = q.correctAnswer || 'Не указан';
+        const explanationText = q.explanation || q.feedback || 'Разбор грамматики и контекста для данного вопроса отсутствует.';
+
+        const questionCard = document.createElement('div');
+        questionCard.className = `question-item ${cardClass}`;
+
+        questionCard.innerHTML = `
+          <div class="q-header">
+            <span class="q-number">Вопрос №${index + 1}</span>
+            <span class="q-badge ${badgeClass}">${badgeText}</span>
+          </div>
+          <div class="q-title">${q.title || q.question || `Вопрос ${index + 1}`}</div>
+          <div class="answers-comparison">
+            <div class="ans-row">
+              <span class="ans-label">Ваш ответ:</span>
+              <span class="ans-val ${isCorrect ? 'user-correct' : 'user-wrong'}">${userAnswerText}</span>
+            </div>
+            ${!isCorrect ? `
+            <div class="ans-row">
+              <span class="ans-label">Правильный ответ:</span>
+              <span class="ans-val correct-ans">${correctAnswerText}</span>
+            </div>` : ''}
+          </div>
+          <div class="q-explanation">
+            <strong>💡 AI Пояснение:</strong> ${explanationText}
+          </div>
+        `;
+
+        listContainer.appendChild(questionCard);
+      });
     });
   </script>
 </body>
