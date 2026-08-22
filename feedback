@@ -9,7 +9,8 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Некорректные данные теста' });
   }
 
-  const isTopik2 = examKey && examKey.includes('topik2');
+  // Расчет баллов TOPIK
+  const isTopik2 = examKey && String(examKey).toLowerCase().includes('topik2');
   const maxScale = isTopik2 ? 300 : 200;
   const percent = totalQuestions > 0 ? correctCount / totalQuestions : 0;
   const finalScore = Math.round(percent * maxScale);
@@ -25,95 +26,93 @@ export default async function handler(req, res) {
     else if (finalScore >= 80) grade = '1 급';
   }
 
-  // Если ошибок нет — отдаем позитивный ответ без запроса к ИИ (экономия токенов)
+  // Отбираем только ошибки
   const mistakes = questions
-    .map((q, i) => ({ ...q, index: i + 1 }))
-    .filter(q => {
-      const isCorrect = q.isCorrect !== undefined ? q.isCorrect : q.userAnswer === q.correctAnswer;
-      return !isCorrect;
-    });
+    .map((q, index) => ({
+      index: index + 1,
+      question: q.title || q.question || q.text || `Вопрос ${index + 1}`,
+      userAnswer: q.userAnswer ?? q.selectedAnswer ?? 'Не выбран',
+      correctAnswer: q.correctAnswer ?? q.rightAnswer ?? 'Нет ответа',
+      isCorrect: q.isCorrect !== undefined ? q.isCorrect : (q.userAnswer === q.correctAnswer)
+    }))
+    .filter(q => !q.isCorrect);
 
+  // Если нет ошибок — возвращаем готовый ответ без вызова ИИ
   if (mistakes.length === 0) {
     return res.status(200).json({
       finalScore,
       maxScale,
       grade,
-      overallFeedback: "Отличный результат! Вы не допустили ни одной ошибки. Продолжайте в том же духе!",
+      overallFeedback: "Отличная работа! Вы решили весь тест без единой ошибки. Отличный уровень подготовки!",
       questionFeedback: []
     });
   }
 
-  const systemPrompt = `Ты — методист по корейскому языку и экзамену TOPIK.
-Отвечай ИСКЛЮЧИТЕЛЬНО в формате валидного JSON без какого-либо текста до или после, и без markdown-тегов (```json).
-Формат ответа:
+  // Формируем системную роль и промпт
+  const systemMessage = `Ты — старший преподаватель корейского языка и официальный экзаменатор TOPIK. 
+Твоя задача — дать глубокий, дружелюбный и методически точный разбор ошибок студента.
+Отвечай СТРОГО в формате JSON с такой структурой:
 {
-  "overallFeedback": "строка с общим разбором",
+  "overallFeedback": "текст с полным анализом результата",
   "questionFeedback": [
-    { "index": число, "explanation": "строка с объяснением" }
+    { "index": номер_вопроса, "explanation": "разбор ошибки" }
   ]
 }`;
 
-  const userPrompt = `Экзамен: ${isTopik2 ? 'TOPIK II' : 'TOPIK I'}. 
-Результат: ${correctCount}/${totalQuestions} правильных, ${finalScore}/${maxScale} баллов, уровень: ${grade}.
+  const userMessage = `Экзамен: ${isTopik2 ? 'TOPIK II' : 'TOPIK I'}
+Результат: ${correctCount} из ${totalQuestions} (${finalScore}/${maxScale} баллов)
+Присвоенный гып: ${grade}
 
 Ошибки студента:
 ${JSON.stringify(mistakes.map(m => ({
   номер: m.index,
-  вопрос: m.title || m.question,
-  варианты_ответа: m.options || undefined,
+  вопрос: m.question,
   ответ_студента: m.userAnswer,
   правильный_ответ: m.correctAnswer
 })), null, 2)}
 
-Инструкции:
-1. overallFeedback (2-3 предложения): кратко проанализируй, какие грамматические темы или лексика вызвали проблемы и что повторить.
-2. questionFeedback: для каждого вопроса объясни, почему ответ студента не верен и почему правильный вариант корректен.`;
+Требования к разбору:
+1. "overallFeedback": Дай развернутый анализ (3-4 предложения). Похвали за старание, укажи слабую сторону (грамматика, лексика, чтение) и дай 1-2 конкретных совета, что выучить для следующего уровня.
+2. "questionFeedback": Для КАЖДОЙ ошибки объясни понятным языком: почему ответ студента не подходит (разбери грамматику/смысл) и почему правильный вариант верен. Поясняй значение корейских грамматических конструкций и слов, если они есть.`;
 
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const response = await fetch('[https://api.openai.com/v1/chat/completions](https://api.openai.com/v1/chat/completions)', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01'
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
       },
       body: JSON.stringify({
-        model: 'claude-3-5-sonnet-20241022', // Актуальное имя модели
-        max_tokens: 1500,
-        system: systemPrompt, // Системные инструкции передаем в специальном поле
-        messages: [{ role: 'user', content: userPrompt }]
+        model: 'gpt-4o-mini',
+        response_format: { type: 'json_object' }, // Аппаратный JSON-режим OpenAI
+        temperature: 0.4,
+        messages: [
+          { role: 'system', content: systemMessage },
+          { role: 'user', content: userMessage }
+        ]
       })
     });
 
     if (!response.ok) {
-      const errText = await response.text();
-      throw new Error(`AI API error: ${response.status} ${errText}`);
+      const errBody = await response.text();
+      throw new Error(`OpenAI API error (${response.status}): ${errBody}`);
     }
 
     const data = await response.json();
-    const rawText = data.content
-      .filter(block => block.type === 'text')
-      .map(block => block.text)
-      .join('\n');
-
-    // Очистка от возможных markdown-тегов
-    const cleaned = rawText.replace(/```json\s*|```/gi, '').trim();
-    const parsed = JSON.parse(cleaned);
+    const parsedData = JSON.parse(data.choices[0].message.content);
 
     return res.status(200).json({
       finalScore,
       maxScale,
       grade,
-      overallFeedback: parsed.overallFeedback,
-      questionFeedback: parsed.questionFeedback
+      overallFeedback: parsedData.overallFeedback,
+      questionFeedback: parsedData.questionFeedback
     });
+
   } catch (err) {
-    console.error('AI feedback error:', err);
+    console.error('AI error:', err);
     return res.status(500).json({
-      error: 'Не удалось получить AI-фидбек',
+      error: 'Ошибка генерации фидбека',
+      details: err.message,
       finalScore,
       maxScale,
-      grade
-    });
-  }
-}
