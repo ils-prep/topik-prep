@@ -1,8 +1,3 @@
-// /api/ai-feedback.js
-// Serverless-функция (формат Vercel / Netlify Functions).
-// КЛЮЧ API ХРАНИТСЯ ТОЛЬКО ЗДЕСЬ, на сервере, через переменные окружения.
-// Никогда не кладите ключ в клиентский JS — иначе его увидит любой в devtools.
-
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -16,11 +11,9 @@ export default async function handler(req, res) {
 
   const isTopik2 = examKey && examKey.includes('topik2');
   const maxScale = isTopik2 ? 300 : 200;
-  const percent = correctCount / totalQuestions;
+  const percent = totalQuestions > 0 ? correctCount / totalQuestions : 0;
   const finalScore = Math.round(percent * maxScale);
 
-  // Считаем гып по официальной шкале NIIED — это не ИИ-решение,
-  // это детерминированная логика, ИИ только комментирует результат.
   let grade = 'Не сдан';
   if (isTopik2) {
     if (finalScore >= 230) grade = '6 급';
@@ -32,7 +25,7 @@ export default async function handler(req, res) {
     else if (finalScore >= 80) grade = '1 급';
   }
 
-  // Собираем компактный список ошибок, чтобы не гонять в промпте лишнее
+  // Если ошибок нет — отдаем позитивный ответ без запроса к ИИ (экономия токенов)
   const mistakes = questions
     .map((q, i) => ({ ...q, index: i + 1 }))
     .filter(q => {
@@ -40,41 +33,55 @@ export default async function handler(req, res) {
       return !isCorrect;
     });
 
-  const prompt = `Ты — эксперт-методист по корейскому языку и экзамену TOPIK.
-Экзамен: ${isTopik2 ? 'TOPIK II' : 'TOPIK I'}. Результат: ${correctCount}/${totalQuestions} правильных, ${finalScore}/${maxScale} баллов, присвоен уровень ${grade}.
+  if (mistakes.length === 0) {
+    return res.status(200).json({
+      finalScore,
+      maxScale,
+      grade,
+      overallFeedback: "Отличный результат! Вы не допустили ни одной ошибки. Продолжайте в том же духе!",
+      questionFeedback: []
+    });
+  }
 
-Список вопросов, где студент ошибся (JSON):
+  const systemPrompt = `Ты — методист по корейскому языку и экзамену TOPIK.
+Отвечай ИСКЛЮЧИТЕЛЬНО в формате валидного JSON без какого-либо текста до или после, и без markdown-тегов (```json).
+Формат ответа:
+{
+  "overallFeedback": "строка с общим разбором",
+  "questionFeedback": [
+    { "index": число, "explanation": "строка с объяснением" }
+  ]
+}`;
+
+  const userPrompt = `Экзамен: ${isTopik2 ? 'TOPIK II' : 'TOPIK I'}. 
+Результат: ${correctCount}/${totalQuestions} правильных, ${finalScore}/${maxScale} баллов, уровень: ${grade}.
+
+Ошибки студента:
 ${JSON.stringify(mistakes.map(m => ({
   номер: m.index,
   вопрос: m.title || m.question,
+  варианты_ответа: m.options || undefined,
   ответ_студента: m.userAnswer,
   правильный_ответ: m.correctAnswer
 })), null, 2)}
 
-Задача:
-1. Дай общий разбор результата (2-4 предложения): на что похожи ошибки, какой уровень навыка это отражает, что подтянуть для следующего гыпа. Без выдуманных фактов о студенте, только по данным выше.
-2. Для КАЖДОГО вопроса из списка ошибок дай короткое объяснение (1-2 предложения): почему выбранный ответ студента неверен и почему правильный ответ верен — грамматически или по смыслу.
-
-Ответь СТРОГО в формате JSON без markdown-обёртки:
-{
-  "overallFeedback": "текст общего разбора",
-  "questionFeedback": [
-    { "index": номер_вопроса, "explanation": "текст объяснения" }
-  ]
-}`;
+Инструкции:
+1. overallFeedback (2-3 предложения): кратко проанализируй, какие грамматические темы или лексика вызвали проблемы и что повторить.
+2. questionFeedback: для каждого вопроса объясни, почему ответ студента не верен и почему правильный вариант корректен.`;
 
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY, // задаётся в настройках хостинга, НЕ в коде
+        'x-api-key': process.env.ANTHROPIC_API_KEY,
         'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
+        model: 'claude-3-5-sonnet-20241022', // Актуальное имя модели
         max_tokens: 1500,
-        messages: [{ role: 'user', content: prompt }]
+        system: systemPrompt, // Системные инструкции передаем в специальном поле
+        messages: [{ role: 'user', content: userPrompt }]
       })
     });
 
@@ -89,7 +96,8 @@ ${JSON.stringify(mistakes.map(m => ({
       .map(block => block.text)
       .join('\n');
 
-    const cleaned = rawText.replace(/```json|```/g, '').trim();
+    // Очистка от возможных markdown-тегов
+    const cleaned = rawText.replace(/```json\s*|```/gi, '').trim();
     const parsed = JSON.parse(cleaned);
 
     return res.status(200).json({
