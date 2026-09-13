@@ -16,14 +16,15 @@ export default async function handler(req, res) {
   const finalScore = Math.round(percent * maxScale);
 
   let grade = 'Не сдан';
+  let passed = false;
   if (isTopik2) {
-    if (finalScore >= 230) grade = '6 급';
-    else if (finalScore >= 190) grade = '5 급';
-    else if (finalScore >= 150) grade = '4 급';
-    else if (finalScore >= 120) grade = '3 급';
+    if (finalScore >= 230) { grade = '6 급'; passed = true; }
+    else if (finalScore >= 190) { grade = '5 급'; passed = true; }
+    else if (finalScore >= 150) { grade = '4 급'; passed = true; }
+    else if (finalScore >= 120) { grade = '3 급'; passed = true; }
   } else {
-    if (finalScore >= 140) grade = '2 급';
-    else if (finalScore >= 80) grade = '1 급';
+    if (finalScore >= 140) { grade = '2 급'; passed = true; }
+    else if (finalScore >= 80) { grade = '1 급'; passed = true; }
   }
 
   // Отбираем только ошибки
@@ -43,17 +44,18 @@ export default async function handler(req, res) {
       finalScore,
       maxScale,
       grade,
-      overallFeedback: "Отличная работа! Вы решили весь тест без единой ошибки. Отличный уровень подготовки!",
+      passed,
+      overallFeedback: 'Отличная работа! Вы решили весь тест без единой ошибки. Отличный уровень подготовки!',
       questionFeedback: []
     });
   }
 
   // Формируем системную роль и промпт
-  const systemMessage = `Ты — старший преподаватель корейского языка и официальный экзаменатор TOPIK. 
+  const systemMessage = `Ты — старший преподаватель корейского языка и официальный экзаменатор TOPIK.
 Твоя задача — дать глубокий, дружелюбный и методически точный разбор ошибок студента.
-Отвечай СТРОГО в формате JSON с такой структурой:
+Отвечай СТРОГО в формате JSON (без markdown, без \`\`\`) со структурой:
 {
-  "overallFeedback": "текст с полным анализом результата",
+  "overallFeedback": "текст с полным анализом результата и итогом — сдал студент экзамен или нет",
   "questionFeedback": [
     { "index": номер_вопроса, "explanation": "разбор ошибки" }
   ]
@@ -62,6 +64,7 @@ export default async function handler(req, res) {
   const userMessage = `Экзамен: ${isTopik2 ? 'TOPIK II' : 'TOPIK I'}
 Результат: ${correctCount} из ${totalQuestions} (${finalScore}/${maxScale} баллов)
 Присвоенный гып: ${grade}
+Статус: ${passed ? 'Тест сдан' : 'Тест не сдан'}
 
 Ошибки студента:
 ${JSON.stringify(mistakes.map(m => ({
@@ -72,11 +75,11 @@ ${JSON.stringify(mistakes.map(m => ({
 })), null, 2)}
 
 Требования к разбору:
-1. "overallFeedback": Дай развернутый анализ (3-4 предложения). Похвали за старание, укажи слабую сторону (грамматика, лексика, чтение) и дай 1-2 конкретных совета, что выучить для следующего уровня.
+1. "overallFeedback": Дай развернутый анализ (3-4 предложения). Похвали за старание, укажи слабую сторону (грамматика, лексика, чтение), скажи прямо сдал ли студент тест и дай 1-2 конкретных совета, что выучить для следующего уровня.
 2. "questionFeedback": Для КАЖДОЙ ошибки объясни понятным языком: почему ответ студента не подходит (разбери грамматику/смысл) и почему правильный вариант верен. Поясняй значение корейских грамматических конструкций и слов, если они есть.`;
 
   try {
-    const response = await fetch('[https://api.openai.com/v1/chat/completions](https://api.openai.com/v1/chat/completions)', {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -99,14 +102,26 @@ ${JSON.stringify(mistakes.map(m => ({
     }
 
     const data = await response.json();
-    const parsedData = JSON.parse(data.choices[0].message.content);
+    const rawContent = data?.choices?.[0]?.message?.content;
+
+    if (!rawContent) {
+      throw new Error('Пустой ответ от модели');
+    }
+
+    let parsedData;
+    try {
+      parsedData = JSON.parse(rawContent);
+    } catch (parseErr) {
+      throw new Error(`Не удалось распарсить JSON от модели: ${parseErr.message}`);
+    }
 
     return res.status(200).json({
       finalScore,
       maxScale,
       grade,
-      overallFeedback: parsedData.overallFeedback,
-      questionFeedback: parsedData.questionFeedback
+      passed,
+      overallFeedback: parsedData.overallFeedback || 'Не удалось сгенерировать общий фидбек.',
+      questionFeedback: Array.isArray(parsedData.questionFeedback) ? parsedData.questionFeedback : []
     });
 
   } catch (err) {
@@ -116,3 +131,10 @@ ${JSON.stringify(mistakes.map(m => ({
       details: err.message,
       finalScore,
       maxScale,
+      grade,
+      passed,
+      overallFeedback: null,
+      questionFeedback: []
+    });
+  }
+}
