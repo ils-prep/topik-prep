@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Официальный симулятор TOPIK I · Тема: Знакомство</title>
+  <style>
+    :root {
+      --bg: #05070f;
+      --card-bg: rgba(13, 18, 33, 0.75);
+      --border: rgba(168, 85, 247, 0.2);
+      --text: #f3f4f6;
+      --text-muted: #8892b0;
+      --purple: #a855f7;
+      --cyan: #06b6d4;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; transition: all 0.2s ease; }
+    body { background-color: var(--bg); color: var(--text); font-family: system-ui, -apple-system, sans-serif; padding: 40px 20px; }
+    .container { max-width: 850px; margin: 0 auto; }
+
+    .test-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 24px; padding: 40px; backdrop-filter: blur(20px); box-shadow: 0 20px 40px rgba(0,0,0,0.5); }
+
+    .test-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+    .timer-badge { background: rgba(6, 182, 212, 0.1); border: 1px solid var(--cyan); color: var(--cyan); padding: 6px 14px; border-radius: 8px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+    .audio-player-container {
+      background: rgba(6, 182, 212, 0.06); border: 1px solid rgba(6, 182, 212, 0.2);
+      border-radius: 16px; padding: 18px; margin-bottom: 25px; display: flex; align-items: center; justify-content: space-between; gap: 15px;
+    }
+    .audio-info { display: flex; flex-direction: column; gap: 4px; }
+    .audio-label { font-size: 0.8rem; font-weight: 700; color: var(--cyan); text-transform: uppercase; letter-spacing: 0.5px; }
+    .audio-status { font-size: 0.9rem; color: var(--text-muted); }
+
+    .play-tts-btn {
+      background: linear-gradient(135deg, var(--cyan), #0891b2); color: #000; border: none;
+      padding: 12px 24px; border-radius: 10px; font-weight: 700; cursor: pointer; font-size: 0.95rem;
+      display: flex; align-items: center; gap: 8px; box-shadow: 0 0 15px rgba(6, 182, 212, 0.2);
+    }
+    .play-tts-btn:hover { opacity: 0.9; transform: scale(1.02); }
+    .play-tts-btn:disabled { background: #27272a; color: #71717a; cursor: not-allowed; box-shadow: none; }
+
+    .progress-bar { width: 100%; height: 6px; background: rgba(255,255,255,0.05); border-radius: 10px; margin-bottom: 30px; overflow: hidden; }
+    .progress-fill { height: 100%; background: linear-gradient(90deg, var(--purple), var(--cyan)); width: 0%; }
+
+    .q-meta { font-size: 0.85rem; color: var(--purple); font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+    .q-text { font-size: 1.2rem; font-weight: 600; margin-bottom: 30px; line-height: 1.6; color: #fff; white-space: pre-line; }
+
+    .options-group { display: grid; grid-template-columns: 1fr; gap: 14px; }
+    .option-btn {
+      background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px;
+      padding: 18px 22px; text-align: left; color: var(--text); font-size: 1.05rem; font-weight: 500; cursor: pointer;
+    }
+    .option-btn:hover { background: rgba(168, 85, 247, 0.08); border-color: rgba(168, 85, 247, 0.4); }
+  </style>
+</head>
+<body>
+
+  <main class="container">
+    <div class="test-card">
+      <div class="test-header">
+        <div class="q-meta" id="exam-title">TOPIK I · Знакомство (친구 및 소개)</div>
+        <div class="timer-badge" id="timer">100:00</div>
+      </div>
+
+      <div id="audio-zone" style="display: none;">
+        <div class="audio-player-container">
+          <div class="audio-info">
+            <div class="audio-label">🎧 Аудирование (듣기)</div>
+            <div class="audio-status" id="tts-status">Нажмите кнопку для прослушивания диалога</div>
+          </div>
+          <button class="play-tts-btn" id="tts-trigger-btn">▶ Слушать аудио</button>
+        </div>
+      </div>
+
+      <div class="progress-bar"><div class="progress-fill" id="progress"></div></div>
+      <div class="q-meta" id="q-number">Задание 1</div>
+      <div class="q-text" id="q-text">Загрузка вопросов...</div>
+
+      <div id="interaction-zone"></div>
+    </div>
+  </main>
+
+  <script>
+    (() => {
+      'use strict';
+
+      // База данных пробника TOPIK I (Тема: Знакомство, школа, друзья) по аналогии с реальным экзаменом
+      const questions = [
+        // --- СЛУШАНИЕ (듣기 1-10) ---
+        {
+          type: 'choice',
+          section: '듣기 (Слушание)',
+          text: '[1번] 남자의 말을 듣고 알맞은 대답을 고르십시오.\n\n남자가 물어봅니다: "학생이에요?"',
+          speechText: "학생이에요?",
+          options: ['① 네. 학생이에요.', '② 아니요. 학생이 많아요.', '③ 네. 책이 있어요.', '④ 아니요. 안 읽어요.'],
+          answer: 1
+        },
+        {
+          type: 'choice',
+          section: '듣기 (Слушание)',
+          text: '[2번] 여자의 말을 듣고 알맞은 대답을 고르십시오.\n\n여자가 물어봅니다: "책을 읽어요?"',
+          speechText: "책을 읽어요?",
+          options: ['① 네, 영화를 봐요.', '② 아니요, 책을 안 읽어요.', '③ 네, 학교에 가요.', '④ 아니요, 한국 사람이에요.'],
+          answer: 2
+        },
+        {
+          type: 'choice',
+          section: '듣기 (Слушание)',
+          text: '[3번] 어디에서 이야기하고 있습니까? 알맞은 것을 고르십시오.\n\n남자가 말합니다: "우리 어디에서 만날까요?"\n여자가 대답합니다: "학교 앞 카페에서 봐요."',
+          speechText: "우리 어디에서 만날까요? 학교 앞 카페에서 봐요.",
+          options: ['① 도서관', '② 공항', '③ 카페', '④ 우체국'],
+          answer: 3
+        },
+        {
+          type: 'choice',
+          section: '듣기 (Слушание)',
+          text: '[4번] 남자가 무엇을 타고 갔는지 고르십시오.\n\n여자가 묻습니다: "공항에 어떻게 갔어요?"\n남자가 답합니다: "지하철을 타고 갔어요."',
+          speechText: "공항에 어떻게 갔어요? 지하철을 타고 갔어요.",
+          options: ['① 자전거', '② 버스', '③ 지하철', '④ 택시'],
+          answer: 3
+        },
+        // --- ЧТЕНИЕ (읽기 11-20) ---
+        {
+          type: 'choice',
+          section: '읽기 (Чтение)',
+          text: '[5번] 다음을 읽고 무엇에 대해 이야기하고 있는지 고르십시오.\n\n"저는 수미입니다. 제 친구는 지민입니다."',
+          options: ['① 이름', '② 날씨', '③ 시간', '④ 위치'],
+          answer: 1
+        },
+        {
+          type: 'choice',
+          section: '읽기 (Чтение)',
+          text: '[6번] 빈칸에 들어갈 가장 알맞은 것을 고르십시오.\n\n"비가 옵니다. ( )을/를 씁니다."',
+          options: ['① 안경', '② 모자', '③ 우산', '④ 가방'],
+          answer: 3
+        },
+        {
+          type: 'choice',
+          section: '읽기 (Чтение)',
+          text: '[7번] 빈칸에 들어갈 가장 알맞은 것을 고르십시오.\n\n"한국 친구가 있습니다. 매일 한국말을 ( )."',
+          options: ['① 잡습니다', '② 배웁니다', '③ 삽니다', '④ 씁니다'],
+          answer: 2
+        },
+        {
+          type: 'choice',
+          section: '읽기 (Чтение)',
+          text: '[8번] 다음 글을 읽고 내용이 같은 것을 고르십시오.\n\n"어제 새로운 친구를 만났습니다. 그 친구는 한국어를 아주 잘 합니다. 우리는 함께 영화를 보았습니다."',
+          options: [
+            '① 저는 어제 혼자 영화를 봤습니다.',
+            '② 그 친구는 한국어를 못 합니다.',
+            '③ 저는 어제 새 친구를 만났습니다.',
+            '④ 우리는 내일 영화를 볼 겁니다.'
+          ],
+          answer: 3
+        },
+        {
+          type: 'choice',
+          section: '읽기 (Чтение)',
+          text: '[9번] 다음 글의 중심 생각을 고르십시오.\n\n"제 동생은 그림을 아주 잘 그립니다. 동생이 그린 그림을 보면 기분이 좋습니다. 저도 동생처럼 멋진 그림을 그려보고 싶습니다."',
+          options: [
+            '① 저는 그림 ëвгôв покупать.',
+            '② 저도 멋진 그림을 그려보고 싶습니다.',
+            '③ 동생은 그림을 못 그립니다.',
+            '④ 저는 동생과 싸웠습니다.'
+          ],
+          answer: 2
+        },
+        {
+          type: 'choice',
+          section: '읽기 (Чтение)',
+          text: '[10번] 빈칸 ( )에 들어갈 가장 알맞은 것을 고르십시오.\n\n"저는 주말마다 도서관에 갑니다. 거기에서 책을 읽고 ( ) 공부를 합니다."',
+          options: ['① 열심히', '② 비싸게', '③ 멀리', '④ 일찍'],
+          answer: 1
+        }
+      ];
+
+      let currentIdx = 0;
+      let timeLeft = 100 * 60; // 100 минут для TOPIK I
+      const userAnswers = new Array(questions.length).fill(null);
+
+      function speakKoreanText(text) {
+        if (!('speechSynthesis' in window)) {
+          alert('Ваш браузер не поддерживает синтез речи.');
+          return;
+        }
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'ko-KR';
+        utterance.rate = 0.85; // Чуть медленнее для экзаменационного формата
+
+        const statusEl = document.getElementById('tts-status');
+        const btn = document.getElementById('tts-trigger-btn');
+
+        utterance.onstart = () => { statusEl.textContent = '🔊 Воспроизведение аудио...'; btn.disabled = true; };
+        utterance.onend = () => { statusEl.textContent = '✅ Прослушано. Выберите вариант ответа.'; btn.disabled = false; };
+        utterance.onerror = () => { statusEl.textContent = '❌ Ошибка воспроизведения звука.'; btn.disabled = false; };
+
+        window.speechSynthesis.speak(utterance);
+      }
+
+      function startTimer() {
+        const timerEl = document.getElementById('timer');
+        const interval = setInterval(() => {
+          if (timeLeft <= 0) { clearInterval(interval); finishExam(); return; }
+          timeLeft--;
+          const mins = Math.floor(timeLeft / 60);
+          const secs = timeLeft % 60;
+          timerEl.textContent = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }, 1000);
+      }
+
+      function renderQuestion() {
+        if (currentIdx >= questions.length) { finishExam(); return; }
+        window.speechSynthesis.cancel();
+
+        const q = questions[currentIdx];
+
+        document.getElementById('progress').style.width = `${(currentIdx / questions.length) * 100}%`;
+        document.getElementById('exam-title').textContent = `TOPIK I · ${q.section}`;
+        document.getElementById('q-number').textContent = `Задание ${currentIdx + 1} из ${questions.length}`;
+        document.getElementById('q-text').textContent = q.text;
+
+        const audioZone = document.getElementById('audio-zone');
+        const btn = document.getElementById('tts-trigger-btn');
+        const statusEl = document.getElementById('tts-status');
+
+        if (q.speechText) {
+          audioZone.style.display = 'block';
+          statusEl.textContent = 'Нажмите кнопку для прослушивания';
+          btn.disabled = false;
+          btn.onclick = () => speakKoreanText(q.speechText);
+        } else {
+          audioZone.style.display = 'none';
+        }
+
+        const zone = document.getElementById('interaction-zone');
+        zone.innerHTML = '';
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'options-group';
+        q.options.forEach((opt, index) => {
+          const btnOpt = document.createElement('button');
+          btnOpt.className = 'option-btn';
+          btnOpt.textContent = opt;
+          btnOpt.onclick = () => saveChoiceAnswer(index + 1);
+          wrapper.appendChild(btnOpt);
+        });
+        zone.appendChild(wrapper);
+      }
+
+      function saveChoiceAnswer(selectedOption) {
+        userAnswers[currentIdx] = selectedOption;
+        currentIdx++;
+        renderQuestion();
+      }
+
+      function finishExam() {
+        window.speechSynthesis.cancel();
+        let correctCount = 0;
+        questions.forEach((q, idx) => {
+          if (Number(userAnswers[idx]) === Number(q.answer)) correctCount++;
+        });
+
+        const percentage = Math.round((correctCount / questions.length) * 100);
+        
+        const card = document.querySelector('.test-card');
+        card.innerHTML = `
+          <div style="text-align: center; padding: 20px;">
+            <h2 style="color: var(--cyan); margin-bottom: 15px; font-size: 1.8rem;">🎉 Пробник успешно завершен!</h2>
+            <p style="font-size: 1.2rem; margin-bottom: 10px;">Правильных ответов: <b>${correctCount} из ${questions.length}</b></p>
+            <p style="font-size: 1.1rem; color: var(--text-muted); margin-bottom: 25px;">Ваш результат: <b>${percentage}%</b></p>
+            <button class="play-tts-btn" style="margin: 0 auto;" onclick="window.location.reload()">Пройти тест заново</button>
+          </div>
+        `;
+      }
+
+      document.addEventListener('DOMContentLoaded', () => { startTimer(); renderQuestion(); });
+    })();
+  </script>
+</body>
+</html>
