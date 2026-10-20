@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Официальный симулятор TOPIK I · 91-й выпуск</title>
+  <style>
+    :root {
+      --bg: #05070f;
+      --card-bg: rgba(13, 18, 33, 0.75);
+      --border: rgba(168, 85, 247, 0.2);
+      --text: #f3f4f6;
+      --text-muted: #8892b0;
+      --purple: #a855f7;
+      --cyan: #06b6d4;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; transition: all 0.2s ease; }
+    body { background-color: var(--bg); color: var(--text); font-family: system-ui, -apple-system, sans-serif; padding: 40px 20px; }
+    .container { max-width: 850px; margin: 0 auto; }
+
+    .test-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 24px; padding: 40px; backdrop-filter: blur(20px); box-shadow: 0 20px 40px rgba(0,0,0,0.5); }
+
+    .test-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+    .timer-badge { background: rgba(6, 182, 212, 0.1); border: 1px solid var(--cyan); color: var(--cyan); padding: 6px 14px; border-radius: 8px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+    .audio-player-container {
+      background: rgba(6, 182, 212, 0.06); border: 1px solid rgba(6, 182, 212, 0.2);
+      border-radius: 16px; padding: 18px; margin-bottom: 25px; display: flex; align-items: center; justify-content: space-between; gap: 15px;
+    }
+    .audio-info { display: flex; flex-direction: column; gap: 4px; }
+    .audio-label { font-size: 0.8rem; font-weight: 700; color: var(--cyan); text-transform: uppercase; letter-spacing: 0.5px; }
+    .audio-status { font-size: 0.9rem; color: var(--text-muted); }
+
+    .play-tts-btn {
+      background: linear-gradient(135deg, var(--cyan), #0891b2); color: #000; border: none;
+      padding: 12px 24px; border-radius: 10px; font-weight: 700; cursor: pointer; font-size: 0.95rem;
+      display: flex; align-items: center; gap: 8px; box-shadow: 0 0 15px rgba(6, 182, 212, 0.2);
+    }
+    .play-tts-btn:hover { opacity: 0.9; transform: scale(1.02); }
+    .play-tts-btn:disabled { background: #27272a; color: #71717a; cursor: not-allowed; box-shadow: none; }
+
+    .progress-bar { width: 100%; height: 6px; background: rgba(255,255,255,0.05); border-radius: 10px; margin-bottom: 30px; overflow: hidden; }
+    .progress-fill { height: 100%; background: linear-gradient(90deg, var(--purple), var(--cyan)); width: 0%; }
+
+    .q-meta { font-size: 0.85rem; color: var(--purple); font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+    .q-text { font-size: 1.2rem; font-weight: 600; margin-bottom: 30px; line-height: 1.6; color: #fff; white-space: pre-line; }
+
+    .options-group { display: grid; grid-template-columns: 1fr; gap: 14px; }
+    .option-btn {
+      background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px;
+      padding: 18px 22px; text-align: left; color: var(--text); font-size: 1.05rem; font-weight: 500; cursor: pointer;
+    }
+    .option-btn:hover { background: rgba(168, 85, 247, 0.08); border-color: rgba(168, 85, 247, 0.4); }
+  </style>
+</head>
+<body>
+
+  <main class="container">
+    <div class="test-card">
+      <div class="test-header">
+        <div class="q-meta" id="exam-title">TOPIK I · 91-й выпуск</div>
+        <div class="timer-badge" id="timer">100:00</div>
+      </div>
+
+      <div id="audio-zone" style="display: none;">
+        <div class="audio-player-container">
+          <div class="audio-info">
+            <div class="audio-label">🎧 Аудирование (듣기)</div>
+            <div class="audio-status" id="tts-status">Нажмите кнопку для прослушивания диалога</div>
+          </div>
+          <button class="play-tts-btn" id="tts-trigger-btn">▶ Слушать аудио</button>
+        </div>
+      </div>
+
+      <div class="progress-bar"><div class="progress-fill" id="progress"></div></div>
+      <div class="q-meta" id="q-number">Задание 1</div>
+      <div class="q-text" id="q-text">Загрузка вопросов...</div>
+
+      <div id="interaction-zone"></div>
+    </div>
+  </main>
+
+  <script>
+    (() => {
+      'use strict';
+
+      // База данных заданий на основе официального 91-го экзамена TOPIK I (Аудирование и Чтение)
+      const questions = [
+        // --- ДЛИТЕЛЬНЫЙ БЛОК АУДИРОВАНИЯ (듣기 1-30) ---
+        {
+          type: 'choice',
+          section: '듣기 (Слушание) — Q1',
+          text: '[1번] 남자의 말을 듣고 알맞은 대답을 고르십시오.\n\n남자: 학생이에요?',
+          speechText: "학생이에요?",
+          options: ['① 네, 학생이에요[cite: 55].', '② 네, 학생이 없어요[cite: 55].', '③ 아니요, 학생이 와요[cite: 55].', '④ 아니요, 학생이 좋아요[cite: 55].'],
+          answer: 1
+        },
+        {
+          type: 'choice',
+          section: '듣기 (Слушание) — Q2',
+          text: '[2번] 여자의 말을 듣고 알맞은 대답을 고르십시오.\n\n여자: 과자를 좋아해요?',
+          speechText: "과자를 좋아해요?",
+          options: ['① 네, 과자가 비싸요[cite: 80].', '② 네, 과자가 아니에요[cite: 80].', '③ 아니요, 과자를 먹어요[cite: 80].', '④ 아니요, 과자를 안 좋아해요[cite: 80].'],
+          answer: 4
+        },
+        {
+          type: 'choice',
+          section: '듣기 (Слушание) — Q3',
+          text: '[3번] 남자의 말을 듣고 알맞은 대답을 고르십시오.\n\n남자: 지금 무엇을 마셔요?',
+          speechText: "지금 무엇을 마셔요?",
+          options: ['① 매일 마셔요[cite: 80].', '② 제가 마셔요[cite: 80].', '③ 우유를 마셔요[cite: 80].', '④ 집에서 마셔요[cite: 80].'],
+          answer: 3
+        },
+        {
+          type: 'choice',
+          section: '듣기 (Слушание) — Q4',
+          text: '[4번] 여자의 말을 듣고 알맞은 대답을 고르십시오.\n\n여자: 학교에 어떻게 가요?',
+          speechText: "학교에 어떻게 가요?",
+          options: ['① 내일 가요[cite: 81].', '② 공원에 가요[cite: 81].', '③ 동생이 가요[cite: 81].', '④ 지하철로 가요[cite: 81].'],
+          answer: 4
+        },
+        {
+          type: 'choice',
+          section: '듣기 (Слушание) — Q7',
+          text: '[7번] 어디에서 이야기하고 있습니까? 알맞은 것을 고르십시오.\n\n남자: 한 시 영화표 두 장 주세요.\n여자: 네, 여기 있습니다.',
+          speechText: "한 시 영화표 두 장 주세요. 네, 여기 있습니다.",
+          options: ['① 극장[cite: 82]', '② 병원[cite: 82]', '③ 은행[cite: 82]', '④ 식당[cite: 82]'],
+          answer: 1
+        },
+        {
+          type: 'choice',
+          section: '듣기 (Слушание) — Q11',
+          text: '[11번] 다음은 무엇에 대해 말하고 있습니까?\n\n남자: 수미 씨, 떡볶이가 어때요?\n여자: 조금 매워요.',
+          speechText: "수미 씨, 떡볶이가 어때요? 조금 매워요.",
+          options: ['① 값[cite: 83]', '② 맛[cite: 83]', '③ 주말[cite: 83]', '④ 시간[cite: 83]'],
+          answer: 2
+        },
+        {
+          type: 'choice',
+          section: '듣기 (Слушание) — Q15',
+          text: '[15번] 다음을 듣고 가장 알맞은 그림을 고르십시오.\n\n남자: 이것보다 작은 가방 있어요?\n여자: 네, 가게 안에 있어요. 들어와서 보세요.',
+          speechText: "이것보다 작은 가방 있어요? 네, 가게 안에 있어요. 들어와서 보세요.",
+          options: ['① 그림 1[cite: 58]', '② 그림 2[cite: 58]', '③ 그림 3[cite: 58]', '④ 그림 4[cite: 58]'],
+          answer: 3
+        },
+        {
+          type: 'choice',
+          section: '듣기 (Слушание) — Q21',
+          text: '[21번] 대화 내용과 같은 것을 고르십시오.\n\n여자: 손님, 무엇을 도와 드릴까요?\n남자: 이 휴대 전화요. 소리가 안 들려서요.\n여자: 음, 고칠 수는 있는데 한 시간 정도 걸릴 것 같습니다.\n남자: 네, 알겠습니다. 그럼 여기서 기다릴게요.',
+          speechText: "손님, 무엇을 도와 드릴까요? 이 휴대 전화요. 소리가 안 들려서요. 음, 고칠 수는 있는데 한 시간 정도 걸릴 것 같습니다. 네, 알겠습니다. 그럼 여기서 기다릴게요.",
+          options: [
+            '① 남자는 새 휴대 전화를 받았습니다[cite: 87].',
+            '② 남자는 휴대 전화를 찾으러 왔습니다[cite: 87].',
+            '③ 남자의 휴대 전화는 고칠 수 없습니다[cite: 87].',
+            '④ 남자의 휴대 전화는 소리가 들리지 않습니다[cite: 87].'
+          ],
+          answer: 4
+        },
+
+        // --- БЛОК ЧТЕНИЯ (읽기 31-70) ---
+        {
+          type: 'choice',
+          section: '읽기 (Чтение) — Q31',
+          text: '[31번] 무엇에 대한 내용입니까? 알맞은 것을 고르십시오.\n\n"사과가 있습니다. 수박은 없습니다."',
+          options: ['① 시간[cite: 63]', '② 과일[cite: 63]', '③ 운동[cite: 63]', '④ 가족[cite: 63]'],
+          answer: 2
+        },
+        {
+          type: 'choice',
+          section: '읽기 (Чтение) — Q32',
+          text: '[32번] 무엇에 대한 내용입니까? 알맞은 것을 고르십시오.\n\n"저는 열다섯 살입니다. 언니는 열일곱 살입니다."',
+          options: ['① 나이[cite: 63]', '② 날짜[cite: 63]', '③ 이름[cite: 63]', '④ 나라[cite: 63]'],
+          answer: 1
+        },
+        {
+          type: 'choice',
+          section: '읽기 (Чтение) — Q34',
+          text: '[34번] 빈칸에 들어갈 가장 알맞은 것을 고르십시오.\n\n"친구를 만납니다. ( )에서 야구를 합니다."',
+          options: ['① 약국[cite: 64]', '② 공항[cite: 64]', '③ 도서관[cite: 64]', '④ 운동장[cite: 64]'],
+          answer: 4
+        },
+        {
+          type: 'choice',
+          section: '읽기 (Чтение) — Q36',
+          text: '[36번] 빈칸에 들어갈 가장 알맞은 것을 고르십시오.\n\n"병원이 집에서 ( ). 걸어서 갑니다."',
+          options: ['① 큽니다[cite: 64]', '② 쌉니다[cite: 64]', '③ 가깝습니다[cite: 64]', '④ 조용합니다[cite: 64]'],
+          answer: 3
+        },
+        {
+          type: 'choice',
+          section: '읽기 (Чтение) — Q40',
+          text: '[40번] 다음을 읽고 맞지 않는 것을 고르십시오.\n\n[불고기 김밥] \n• 2023년 11월 30일까지 \n• 1,500원',
+          options: [
+            '① 김밥입니다[cite: 65].',
+            '② 천오백 원입니다[cite: 65].',
+            '③ 불고기 맛입니다[cite: 65].',
+            '④ 십이월까지 팝니다[cite: 65].'
+          ],
+          answer: 4
+        },
+        {
+          type: 'choice',
+          section: '읽기 (Чтение) — Q43',
+          text: '[43번] 다음을 읽고 내용이 같은 것을 고르십시오.\n\n"저는 친구와 함께 삽니다. 우리는 집에서 한국 가수의 노래를 매일 듣습니다. 금요일에는 수업이 끝나고 같이 노래방에 갑니다."',
+          options: [
+            '① 친구는 저와 같이 삽니다[cite: 67].',
+            '② 저는 금요일에 수업이 없습니다[cite: 67].',
+            '③ 우리는 한국 노래를 가끔 듣습니다[cite: 67].',
+            '④ 친구는 금요일에 혼자 노래방에 갑니다[cite: 67].'
+          ],
+          answer: 1
+        },
+        {
+          type: 'choice',
+          section: '읽기 (Чтение) — Q46',
+          text: '[46번] 다음을 읽고 중심 내용을 고르십시오.\n\n"저는 등산을 하러 제주도에 왔습니다. 그런데 오늘 비가 와서 등산을 못 했습니다. 내일은 꼭 산에 가고 싶습니다."',
+          options: [
+            '① 저는 제주도에서 등산할 겁니다[cite: 68].',
+            '② 저는 등산을 하는 것이 힘듭니다[cite: 68].',
+            '③ 저는 비가 오는 날을 좋아합니다[cite: 68].',
+            '④ 저는 제주도에 가서 살려고 합니다[cite: 68].'
+          ],
+          answer: 1
+        }
+      ];
+
+      let currentIdx = 0;
+      let timeLeft = 100 * 60; // 100 минут на TOPIK I
+      const userAnswers = new Array(questions.length).fill(null);
+
+      function speakKoreanText(text) {
+        if (!('speechSynthesis' in window)) {
+          alert('Ваш браузер не поддерживает синтез речи.');
+          return;
+        }
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'ko-KR';
+        utterance.rate = 0.85;
+
+        const statusEl = document.getElementById('tts-status');
+        const btn = document.getElementById('tts-trigger-btn');
+
+        utterance.onstart = () => { statusEl.textContent = '🔊 Воспроизведение аудио...'; btn.disabled = true; };
+        utterance.onend = () => { statusEl.textContent = '✅ Прослушано. Выберите вариант ответа.'; btn.disabled = false; };
+        utterance.onerror = () => { statusEl.textContent = '❌ Ошибка воспроизведения звука.'; btn.disabled = false; };
+
+        window.speechSynthesis.speak(utterance);
+      }
+
+      function startTimer() {
+        const timerEl = document.getElementById('timer');
+        const interval = setInterval(() => {
+          if (timeLeft <= 0) { clearInterval(interval); finishExam(); return; }
+          timeLeft--;
+          const mins = Math.floor(timeLeft / 60);
+          const secs = timeLeft % 60;
+          timerEl.textContent = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }, 1000);
+      }
+
+      function renderQuestion() {
+        if (currentIdx >= questions.length) { finishExam(); return; }
+        window.speechSynthesis.cancel();
+
+        const q = questions[currentIdx];
+
+        document.getElementById('progress').style.width = `${(currentIdx / questions.length) * 100}%`;
+        document.getElementById('exam-title').textContent = `TOPIK I (91-й выпуск) · ${q.section}`;
+        document.getElementById('q-number').textContent = `Задание ${currentIdx + 1} из ${questions.length}`;
+        document.getElementById('q-text').textContent = q.text;
+
+        const audioZone = document.getElementById('audio-zone');
+        const btn = document.getElementById('tts-trigger-btn');
+        const statusEl = document.getElementById('tts-status');
+
+        if (q.speechText) {
+          audioZone.style.display = 'block';
+          statusEl.textContent = 'Нажмите кнопку для прослушивания';
+          btn.disabled = false;
+          btn.onclick = () => speakKoreanText(q.speechText);
+        } else {
+          audioZone.style.display = 'none';
+        }
+
+        const zone = document.getElementById('interaction-zone');
+        zone.innerHTML = '';
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'options-group';
+        q.options.forEach((opt, index) => {
+          const btnOpt = document.createElement('button');
+          btnOpt.className = 'option-btn';
+          btnOpt.textContent = opt;
+          btnOpt.onclick = () => saveChoiceAnswer(index + 1);
+          wrapper.appendChild(btnOpt);
+        });
+        zone.appendChild(wrapper);
+      }
+
+      function saveChoiceAnswer(selectedOption) {
+        userAnswers[currentIdx] = selectedOption;
+        currentIdx++;
+        renderQuestion();
+      }
+
+      function finishExam() {
+        window.speechSynthesis.cancel();
+        let correctCount = 0;
+        questions.forEach((q, idx) => {
+          if (Number(userAnswers[idx]) === Number(q.answer)) correctCount++;
+        });
+
+        const percentage = Math.round((correctCount / questions.length) * 100);
+        
+        const card = document.querySelector('.test-card');
+        card.innerHTML = `
+          <div style="text-align: center; padding: 20px;">
+            <h2 style="color: var(--cyan); margin-bottom: 15px; font-size: 1.8rem;">🎉 Тест (91-й выпуск) завершен!</h2>
+            <p style="font-size: 1.2rem; margin-bottom: 10px;">Правильных ответов: <b>${correctCount} из ${questions.length}</b></p>
+            <p style="font-size: 1.1rem; color: var(--text-muted); margin-bottom: 25px;">Ваш результат: <b>${percentage}%</b></p>
+            <button class="play-tts-btn" style="margin: 0 auto;" onclick="window.location.reload()">Пройти тест заново</button>
+          </div>
+        `;
+      }
+
+      document.addEventListener('DOMContentLoaded', () => { startTimer(); renderQuestion(); });
+    })();
+  </script>
+</body>
+</html>
