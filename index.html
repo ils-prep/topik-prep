@@ -135,7 +135,6 @@
       padding: 5px 10px; border-radius: 6px; display: inline-block;
     }
     .badge-topik1 { color: var(--cyan); background: rgba(6, 182, 212, 0.1); border: 1px solid rgba(6, 182, 212, 0.15); }
-    .badge-topik2 { color: var(--primary); background: rgba(168, 85, 247, 0.1); border: 1px solid rgba(168, 85, 247, 0.15); }
 
     .gyp-indicator { font-size: 0.75rem; color: var(--text-muted); font-weight: 500; background: rgba(255,255,255,0.03); padding: 4px 8px; border-radius: 6px; }
 
@@ -165,7 +164,7 @@
     <div class="welcome-hero">
       <h1>TOPIK Mock Exams 🇰🇷</h1>
       <p style="color: var(--text-muted); max-width: 620px; line-height: 1.6; font-size: 1.05rem;">
-        Интеллектуальная среда тестирования по стандартам NIIED. Варианты TOPIK I оснащены автоматическим переходом, а модули TOPIK II поддерживают проверку письменной части (쓰기).
+        Интеллектуальная среда тестирования по стандартам NIIED. Все варианты TOPIK I оснащены автоматической проверкой и таймером.
       </p>
     </div>
 
@@ -173,15 +172,15 @@
       <div class="stat-card">
         <div class="stat-icon">🎯</div>
         <div>
-          <div class="stat-val">5 Модулей</div>
+          <div class="stat-val">4 Модуля</div>
           <div class="stat-lbl">Официальные варианты</div>
         </div>
       </div>
       <div class="stat-card">
         <div class="stat-icon">⚡</div>
         <div>
-          <div class="stat-val">AI Feedback</div>
-          <div class="stat-lbl">Проверка 쓰기</div>
+          <div class="stat-val">Anti-Cheat</div>
+          <div class="stat-lbl">Авто-фиксация ответов</div>
         </div>
       </div>
       <div class="stat-card">
@@ -194,9 +193,7 @@
     </div>
 
     <div class="filter-tabs">
-      <button class="filter-btn active" onclick="switchLevel(event, 'all')">Все тесты</button>
-      <button class="filter-btn" onclick="switchLevel(event, 'topik1')">TOPIK I (1-2 급)</button>
-      <button class="filter-btn" onclick="switchLevel(event, 'topik2')">TOPIK II (3-6 급)</button>
+      <button class="filter-btn active" onclick="switchLevel(event, 'all')">Все тесты (TOPIK I)</button>
     </div>
 
     <div class="variants-grid" id="variants-container"></div>
@@ -205,7 +202,7 @@
   <script>
     'use strict';
 
-    // Привязка ваших реальных файлов репозитория
+    // Только существующие файлы TOPIK I в вашем репозитории
     const examData = [
       { 
         file: 'topik11022025.html', 
@@ -242,15 +239,6 @@
         meta: '70 вопросов · Чтение и Аудирование', 
         gyps: '1-2 Гып', 
         type: 'badge-topik1' 
-      },
-      { 
-        file: 'topik2writing.html', 
-        level: 'topik2', 
-        levelName: 'TOPIK II', 
-        name: 'Письмо (쓰기)', 
-        meta: 'Задания 51–54 · ИИ-Проверка', 
-        gyps: '3-6 Гып', 
-        type: 'badge-topik2' 
       }
     ];
 
@@ -284,3 +272,15 @@
     function switchLevel(e, level) {
       const buttons = document.querySelectorAll('.filter-btn');
       buttons.forEach(btn => btn.classList.remove('active'));
+      
+      if (e && e.currentTarget) {
+        e.currentTarget.classList.add('active');
+      }
+
+      renderCards(level);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => renderCards('all'));
+  </script>
+</body>
+</html>
